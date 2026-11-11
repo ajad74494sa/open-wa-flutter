@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:open_wa/open_wa.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:convert';
 import 'dart:async';
@@ -53,6 +54,37 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     super.initState();
     NotificationService().init();
     _startNotificationPoller();
+    _loadSavedSession();
+  }
+
+  Future<void> _loadSavedSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedUrl = prefs.getString('open_wa_base_url');
+      final savedKey = prefs.getString('open_wa_api_key');
+      if (savedUrl != null && savedUrl.isNotEmpty && savedKey != null && savedKey.isNotEmpty) {
+        _baseUrlController.text = savedUrl;
+        _apiKeyController.text = savedKey;
+        await _connectApi();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('open_wa_base_url');
+    await prefs.remove('open_wa_api_key');
+    _client?.close();
+    setState(() {
+      _client = null;
+      _connectedSessionId = null;
+      _selectedSessionId = null;
+      _activeSession = null;
+      _sessions = [];
+      _chats = [];
+      _messages = [];
+      _noticeMessage = 'Logged out successfully.';
+    });
   }
 
   void _startNotificationPoller() {
@@ -124,6 +156,11 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     try {
       final response = await client.sessions.listSessions();
       final oldClient = _client;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('open_wa_base_url', baseUrl);
+      await prefs.setString('open_wa_api_key', apiKey);
+
       setState(() {
         _client = client;
         _sessions = response.data ?? [];
@@ -583,7 +620,12 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         (group) =>
             ChatSummary(id: group.id, name: group.subject, isGroup: true),
       ),
-      _ => _chats,
+      _ => _chats.where((chat) {
+          final id = chat.id.toLowerCase();
+          return !id.contains('status@broadcast') &&
+                 !id.contains('@newsletter') &&
+                 !id.contains('broadcast');
+        }),
     };
     if (query.isEmpty) return source.toList();
     return source
@@ -606,6 +648,12 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         foregroundColor: Colors.white,
         title: const Text('WhatsApp'),
         actions: [
+          if (_apiConnected)
+            IconButton(
+              tooltip: 'Logout',
+              onPressed: _isLoading ? null : _logout,
+              icon: const Icon(Icons.logout),
+            ),
           if (_apiConnected)
             IconButton(
               tooltip: 'Disconnect API',
