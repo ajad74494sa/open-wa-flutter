@@ -27,18 +27,20 @@ class MessageService {
     );
   }
 
-  /// Sends an image file via multipart upload.
+  /// Sends an image photo from local device bytes.
   Future<ApiResponse<ChatMessage>> sendImage(
+    String sessionId,
     String chatId,
     List<int> imageBytes,
     String fileName, {
     String? caption,
   }) async {
-    final fields = {'to': chatId};
-    if (caption != null) fields['caption'] = caption;
-
+    final fields = {
+      'chatId': normalizeChatId(chatId),
+      if (caption != null) 'caption': caption,
+    };
     return _client.uploadMedia<ChatMessage>(
-      '/messages/sendImage',
+      '/api/sessions/${_segment(sessionId)}/messages/send-image',
       fieldName: 'file',
       fileBytes: imageBytes,
       fileName: fileName,
@@ -47,18 +49,20 @@ class MessageService {
     );
   }
 
-  /// Sends a video file.
+  /// Sends a video from local device bytes.
   Future<ApiResponse<ChatMessage>> sendVideo(
+    String sessionId,
     String chatId,
     List<int> videoBytes,
     String fileName, {
     String? caption,
   }) async {
-    final fields = {'to': chatId};
-    if (caption != null) fields['caption'] = caption;
-
+    final fields = {
+      'chatId': normalizeChatId(chatId),
+      if (caption != null) 'caption': caption,
+    };
     return _client.uploadMedia<ChatMessage>(
-      '/messages/sendVideo',
+      '/api/sessions/${_segment(sessionId)}/messages/send-video',
       fieldName: 'file',
       fileBytes: videoBytes,
       fileName: fileName,
@@ -69,32 +73,35 @@ class MessageService {
 
   /// Sends a voice note / PTT audio recording.
   Future<ApiResponse<ChatMessage>> sendVoice(
+    String sessionId,
     String chatId,
     List<int> audioBytes,
     String fileName,
   ) async {
     return _client.uploadMedia<ChatMessage>(
-      '/messages/sendVoice',
+      '/api/sessions/${_segment(sessionId)}/messages/send-audio',
       fieldName: 'file',
       fileBytes: audioBytes,
       fileName: fileName,
-      extraFields: {'to': chatId},
+      extraFields: {'chatId': normalizeChatId(chatId)},
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
-  /// Sends a document or generic file.
+  /// Sends a document or file from local device bytes.
   Future<ApiResponse<ChatMessage>> sendFile(
+    String sessionId,
     String chatId,
     List<int> fileBytes,
     String fileName, {
     String? caption,
   }) async {
-    final fields = {'to': chatId};
-    if (caption != null) fields['caption'] = caption;
-
+    final fields = {
+      'chatId': normalizeChatId(chatId),
+      if (caption != null) 'caption': caption,
+    };
     return _client.uploadMedia<ChatMessage>(
-      '/messages/sendFile',
+      '/api/sessions/${_segment(sessionId)}/messages/send-document',
       fieldName: 'file',
       fileBytes: fileBytes,
       fileName: fileName,
@@ -105,35 +112,37 @@ class MessageService {
 
   /// Sends a custom image sticker.
   Future<ApiResponse<ChatMessage>> sendSticker(
+    String sessionId,
     String chatId,
     List<int> imageBytes,
   ) async {
     return _client.uploadMedia<ChatMessage>(
-      '/messages/sendSticker',
+      '/api/sessions/${_segment(sessionId)}/messages/send-sticker',
       fieldName: 'file',
       fileBytes: imageBytes,
       fileName: 'sticker.png',
-      extraFields: {'to': chatId},
+      extraFields: {'chatId': normalizeChatId(chatId)},
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
-  /// Sends GPS location pins.
+  /// Sends GPS map location.
   Future<ApiResponse<ChatMessage>> sendLocation(
+    String sessionId,
     String chatId,
     double latitude,
     double longitude, {
     String? title,
   }) async {
-    final payload = SendLocationRequest(
-      chatId: chatId,
-      latitude: latitude,
-      longitude: longitude,
-      title: title,
-    );
+    final payload = {
+      'chatId': normalizeChatId(chatId),
+      'lat': latitude,
+      'lng': longitude,
+      if (title != null) 'title': title,
+    };
     return _client.post<ChatMessage>(
-      '/messages/sendLocation',
-      body: payload.toJson(),
+      '/api/sessions/${_segment(sessionId)}/messages/send-location',
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
