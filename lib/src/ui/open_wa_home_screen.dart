@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:open_wa/open_wa.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'dart:convert';
 import 'dart:async';
@@ -747,67 +748,72 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
   }
 
   Future<void> _promptAndSendImage() async {
-    final captionController = TextEditingController();
-    final urlController = TextEditingController(
-      text: 'https://picsum.photos/400/300',
-    );
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send Photo / Image'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: urlController,
-              decoration: const InputDecoration(
-                labelText: 'Image URL or base64',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: captionController,
-              decoration: const InputDecoration(
-                labelText: 'Caption (optional)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    urlController.dispose();
-    captionController.dispose();
-    if (confirmed != true || !mounted) return;
-
     final client = _client;
     final sessionId = _connectedSessionId;
     final chat = _selectedChat;
-    if (client == null || sessionId == null || chat == null) return;
+    if (client == null || sessionId == null || chat == null) {
+      _showError('Please connect a session and select a chat first.');
+      return;
+    }
 
-    await _runRequest(() async {
-      final response = await client.messages.sendText(
-        chat.id,
-        '[Photo: ${urlController.text}] ${captionController.text}',
-        sessionId: sessionId,
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: true,
+        withData: true,
       );
-      final message = response.data;
-      if (message != null && mounted) {
-        setState(() => _messages = [..._messages, message]);
-      }
-      await _loadChats();
-    });
+
+      if (result == null || result.files.isEmpty) return;
+      if (!mounted) return;
+
+      final captionController = TextEditingController();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Send ${result.files.length} Photo(s)'),
+          content: TextField(
+            controller: captionController,
+            decoration: const InputDecoration(
+              labelText: 'Caption (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      );
+      final caption = captionController.text.trim();
+      captionController.dispose();
+
+      if (confirmed != true || !mounted) return;
+
+      await _runRequest(() async {
+        for (final file in result.files) {
+          final bytes = file.bytes;
+          final name = file.name;
+          if (bytes != null) {
+            await client.messages.sendImage(
+              sessionId,
+              chat.id,
+              bytes,
+              name,
+              caption: caption.isNotEmpty ? caption : null,
+            );
+          }
+        }
+        await _loadChats();
+      });
+    } catch (e) {
+      _showError('Error picking image: $e');
+    }
   }
 
   Future<void> _promptAndSendLocation() async {
@@ -931,67 +937,72 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
   }
 
   Future<void> _promptAndSendDocument() async {
-    final nameController = TextEditingController(text: 'document.pdf');
-    final descController = TextEditingController(
-      text: 'Here is the requested document.',
-    );
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Send Document'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'File Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descController,
-              decoration: const InputDecoration(
-                labelText: 'Description / Caption',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Send'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
     final client = _client;
     final sessionId = _connectedSessionId;
     final chat = _selectedChat;
-    if (client == null || sessionId == null || chat == null) return;
+    if (client == null || sessionId == null || chat == null) {
+      _showError('Please connect a session and select a chat first.');
+      return;
+    }
 
-    await _runRequest(() async {
-      final response = await client.messages.sendFile(
-        sessionId,
-        chat.id,
-        utf8.encode(descController.text),
-        nameController.text,
-        caption: descController.text,
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: true,
+        withData: true,
       );
-      final message = response.data;
-      if (message != null && mounted) {
-        setState(() => _messages = [..._messages, message]);
-      }
-      await _loadChats();
-    });
+
+      if (result == null || result.files.isEmpty) return;
+      if (!mounted) return;
+
+      final captionController = TextEditingController();
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Send ${result.files.length} Document(s) / File(s)'),
+          content: TextField(
+            controller: captionController,
+            decoration: const InputDecoration(
+              labelText: 'Caption (optional)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      );
+      final caption = captionController.text.trim();
+      captionController.dispose();
+
+      if (confirmed != true || !mounted) return;
+
+      await _runRequest(() async {
+        for (final file in result.files) {
+          final bytes = file.bytes;
+          final name = file.name;
+          if (bytes != null) {
+            await client.messages.sendFile(
+              sessionId,
+              chat.id,
+              bytes,
+              name,
+              caption: caption.isNotEmpty ? caption : null,
+            );
+          }
+        }
+        await _loadChats();
+      });
+    } catch (e) {
+      _showError('Error picking file: $e');
+    }
   }
 
   Future<void> _promptAndSendPoll() async {
