@@ -149,13 +149,14 @@ class MessageService {
 
   /// Sends vCard contact card.
   Future<ApiResponse<ChatMessage>> sendContact(
+    String sessionId,
     String chatId,
     String contactId,
   ) async {
-    final payload = SendContactRequest(chatId: chatId, contactId: contactId);
+    final payload = {'chatId': normalizeChatId(chatId), 'contactId': contactId};
     return _client.post<ChatMessage>(
-      '/messages/sendContact',
-      body: payload.toJson(),
+      '/api/sessions/${_segment(sessionId)}/messages/send-contact',
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }

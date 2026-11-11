@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:open_wa/open_wa.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'dart:convert';
 import 'dart:async';
@@ -49,6 +48,31 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
   bool get _sessionConnected =>
       _connectedSessionId != null && _connectedSessionId == _selectedSessionId;
 
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+  Color get _chatBgColor =>
+      _isDark ? const Color(0xFF0B141A) : const Color(0xFFECE5DD);
+  Color get _surfaceColor => _isDark ? const Color(0xFF111B21) : Colors.white;
+  Color get _inputFillColor =>
+      _isDark ? const Color(0xFF202C33) : const Color(0xFFF0F2F5);
+  Color get _incomingBubbleColor =>
+      _isDark ? const Color(0xFF202C33) : Colors.white;
+  Color get _outgoingBubbleColor =>
+      _isDark ? const Color(0xFF005C4B) : const Color(0xFFD9FDD3);
+  Color get _selectedTileColor =>
+      _isDark ? const Color(0xFF222D34) : const Color(0xFFE9F5F2);
+  Color get _avatarBgColor =>
+      _isDark ? const Color(0xFF1F2C34) : const Color(0xFFDDF2EA);
+  Color get _avatarFgColor =>
+      _isDark ? const Color(0xFF00A884) : const Color(0xFF075E54);
+  Color get _primaryColor =>
+      _isDark ? const Color(0xFF00A884) : const Color(0xFF128C7E);
+  Color get _appBarBgColor =>
+      _isDark ? const Color(0xFF1F2C34) : const Color(0xFF075E54);
+  Color get _textColor =>
+      _isDark ? const Color(0xFFE9EDEF) : const Color(0xFF111B21);
+  Color get _subTextColor =>
+      _isDark ? const Color(0xFF8696A0) : const Color(0xFF667781);
+
   @override
   void initState() {
     super.initState();
@@ -59,21 +83,13 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
 
   Future<void> _loadSavedSession() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedUrl = prefs.getString('open_wa_base_url');
-      final savedKey = prefs.getString('open_wa_api_key');
-      if (savedUrl != null && savedUrl.isNotEmpty && savedKey != null && savedKey.isNotEmpty) {
-        _baseUrlController.text = savedUrl;
-        _apiKeyController.text = savedKey;
-        await _connectApi();
-      }
+      _baseUrlController.text = 'https://w.kheyalcafe.com';
+      _apiKeyController.text = 'owa_k1_8b99b371a37a83d1939620150f863a1bc2b977cdc40d76a261223f9f99071bed';
+      await _connectApi();
     } catch (_) {}
   }
 
   Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('open_wa_base_url');
-    await prefs.remove('open_wa_api_key');
     _client?.close();
     setState(() {
       _client = null;
@@ -88,28 +104,39 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
   }
 
   void _startNotificationPoller() {
-    _notificationPollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-      if (_client == null || _connectedSessionId == null) return;
-      try {
-        if (_selectedChat != null) {
-          final res = await _client!.messages.getMessages(_connectedSessionId!, _selectedChat!.id);
-          final msgs = res.data ?? [];
-          for (final m in msgs) {
-            if (!_knownMessageIds.contains(m.id)) {
-              _knownMessageIds.add(m.id);
-              if (!m.fromMe) {
-                NotificationService().showMessageNotification(
-                  title: 'New Message from ${m.senderName ?? m.from}',
-                  body: m.body,
-                );
+    _notificationPollTimer =
+        Timer.periodic(const Duration(seconds: 3), (_) async {
+          if (_client == null || _connectedSessionId == null || !mounted) return;
+          try {
+            await _loadChats(silent: true);
+
+            if (_selectedChat != null) {
+              final res = await _client!.messages.getMessages(
+                _connectedSessionId!,
+                _selectedChat!.id,
+              );
+              final messages = res.data ?? [];
+              bool hasNew = false;
+              for (final m in messages) {
+                if (!_knownMessageIds.contains(m.id)) {
+                  _knownMessageIds.add(m.id);
+                  hasNew = true;
+                  if (!m.fromMe) {
+                    NotificationService().showMessageNotification(
+                      title: 'New Message from ${m.senderName ?? m.from}',
+                      body: m.body,
+                    );
+                  }
+                }
+              }
+              if (hasNew && mounted) {
+                setState(() => _messages = messages);
               }
             }
+          } catch (_) {
+            // Suppress background polling errors
           }
-        }
-      } catch (_) {
-        // Suppress background polling errors
-      }
-    });
+        });
   }
 
   @override
@@ -156,10 +183,6 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     try {
       final response = await client.sessions.listSessions();
       final oldClient = _client;
-      
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('open_wa_base_url', baseUrl);
-      await prefs.setString('open_wa_api_key', apiKey);
 
       setState(() {
         _client = client;
@@ -348,7 +371,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     }
   }
 
-  Future<void> _loadChats() async {
+  Future<void> _loadChats({bool silent = false}) async {
     final client = _client;
     final sessionId = _connectedSessionId;
     if (client == null || sessionId == null) return;
@@ -356,9 +379,11 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     if (!mounted) return;
     setState(() {
       _chats = response.data ?? [];
-      _noticeMessage = _chats.isEmpty
-          ? 'No conversations yet.'
-          : 'Loaded ${_chats.length} conversations.';
+      if (!silent) {
+        _noticeMessage = _chats.isEmpty
+            ? 'No conversations yet.'
+            : 'Loaded ${_chats.length} conversations.';
+      }
     });
   }
 
@@ -531,9 +556,12 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     final sessionId = _connectedSessionId;
     if (client == null || sessionId == null) return;
     setState(() {
-      _selectedChat = chat;
+      _selectedChat = chat.copyWith(unreadCount: 0);
       _messages = [];
       _errorMessage = null;
+      _chats = _chats
+          .map((c) => c.id == chat.id ? c.copyWith(unreadCount: 0) : c)
+          .toList();
     });
     await _runRequest(() async {
       final response = await client.messages.getMessages(sessionId, chat.id);
@@ -572,6 +600,515 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
       final response = await client.messages.sendText(
         chat.id,
         content,
+        sessionId: sessionId,
+      );
+      final message = response.data;
+      if (message != null && mounted) {
+        setState(() => _messages = [..._messages, message]);
+      }
+      await _loadChats();
+    });
+  }
+
+  void _showAttachmentMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Attach & Send',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: _textColor,
+              ),
+            ),
+            const SizedBox(height: 20),
+            GridView.count(
+              crossAxisCount: 4,
+              shrinkWrap: true,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              children: [
+                _buildAttachOption(
+                  icon: Icons.image,
+                  color: const Color(0xFF5157AE),
+                  label: 'Photos',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendImage();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.camera_alt,
+                  color: const Color(0xFFE91E63),
+                  label: 'Camera',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendImage();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.location_on,
+                  color: const Color(0xFF00A884),
+                  label: 'Location',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendLocation();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.person,
+                  color: const Color(0xFF00BCD4),
+                  label: 'Contact',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendContact();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.insert_drive_file,
+                  color: const Color(0xFF2196F3),
+                  label: 'Document',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendDocument();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.poll,
+                  color: const Color(0xFFFF9800),
+                  label: 'Poll',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendPoll();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.event,
+                  color: const Color(0xFFE91E63),
+                  label: 'Event',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendEvent();
+                  },
+                ),
+                _buildAttachOption(
+                  icon: Icons.auto_awesome,
+                  color: const Color(0xFF9C27B0),
+                  label: 'AI images',
+                  onTap: () {
+                    Navigator.pop(context);
+                    _promptAndSendAiImage();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAttachOption({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: color,
+            child: Icon(icon, color: Colors.white, size: 26),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(fontSize: 12, color: _textColor),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _promptAndSendImage() async {
+    final captionController = TextEditingController();
+    final urlController = TextEditingController(
+      text: 'https://picsum.photos/400/300',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send Photo / Image'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: urlController,
+              decoration: const InputDecoration(
+                labelText: 'Image URL or base64',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: captionController,
+              decoration: const InputDecoration(
+                labelText: 'Caption (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    urlController.dispose();
+    captionController.dispose();
+    if (confirmed != true || !mounted) return;
+
+    final client = _client;
+    final sessionId = _connectedSessionId;
+    final chat = _selectedChat;
+    if (client == null || sessionId == null || chat == null) return;
+
+    await _runRequest(() async {
+      final response = await client.messages.sendText(
+        chat.id,
+        '[Photo: ${urlController.text}] ${captionController.text}',
+        sessionId: sessionId,
+      );
+      final message = response.data;
+      if (message != null && mounted) {
+        setState(() => _messages = [..._messages, message]);
+      }
+      await _loadChats();
+    });
+  }
+
+  Future<void> _promptAndSendLocation() async {
+    final titleController = TextEditingController(text: 'My Location');
+    final latController = TextEditingController(text: '24.7136');
+    final lngController = TextEditingController(text: '46.6753');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send Location'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleController,
+              decoration: const InputDecoration(
+                labelText: 'Location Title',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: latController,
+              decoration: const InputDecoration(
+                labelText: 'Latitude',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: lngController,
+              decoration: const InputDecoration(
+                labelText: 'Longitude',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final client = _client;
+    final sessionId = _connectedSessionId;
+    final chat = _selectedChat;
+    if (client == null || sessionId == null || chat == null) return;
+
+    await _runRequest(() async {
+      final lat = double.tryParse(latController.text) ?? 24.7136;
+      final lng = double.tryParse(lngController.text) ?? 46.6753;
+      final response = await client.messages.sendLocation(
+        sessionId,
+        chat.id,
+        lat,
+        lng,
+        title: titleController.text,
+      );
+      final message = response.data;
+      if (message != null && mounted) {
+        setState(() => _messages = [..._messages, message]);
+      }
+      await _loadChats();
+    });
+  }
+
+  Future<void> _promptAndSendContact() async {
+    final contactController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send Contact'),
+        content: TextField(
+          controller: contactController,
+          decoration: const InputDecoration(
+            labelText: 'Contact ID / Phone number (e.g. 966500000000@c.us)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final client = _client;
+    final sessionId = _connectedSessionId;
+    final chat = _selectedChat;
+    if (client == null || sessionId == null || chat == null) return;
+
+    await _runRequest(() async {
+      final response = await client.messages.sendContact(
+        sessionId,
+        chat.id,
+        contactController.text.trim(),
+      );
+      final message = response.data;
+      if (message != null && mounted) {
+        setState(() => _messages = [..._messages, message]);
+      }
+      await _loadChats();
+    });
+  }
+
+  Future<void> _promptAndSendDocument() async {
+    final nameController = TextEditingController(text: 'document.pdf');
+    final descController = TextEditingController(
+      text: 'Here is the requested document.',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send Document'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'File Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Description / Caption',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final client = _client;
+    final sessionId = _connectedSessionId;
+    final chat = _selectedChat;
+    if (client == null || sessionId == null || chat == null) return;
+
+    await _runRequest(() async {
+      final response = await client.messages.sendFile(
+        sessionId,
+        chat.id,
+        utf8.encode(descController.text),
+        nameController.text,
+        caption: descController.text,
+      );
+      final message = response.data;
+      if (message != null && mounted) {
+        setState(() => _messages = [..._messages, message]);
+      }
+      await _loadChats();
+    });
+  }
+
+  Future<void> _promptAndSendPoll() async {
+    final questionController = TextEditingController(
+      text: 'What is your preference?',
+    );
+    final optionsController = TextEditingController(
+      text: 'Option A, Option B, Option C',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Create Poll'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: questionController,
+              decoration: const InputDecoration(
+                labelText: 'Poll Question',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: optionsController,
+              decoration: const InputDecoration(
+                labelText: 'Options (comma separated)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Send Poll'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final client = _client;
+    final sessionId = _connectedSessionId;
+    final chat = _selectedChat;
+    if (client == null || sessionId == null || chat == null) return;
+
+    await _runRequest(() async {
+      final options = optionsController.text
+          .split(',')
+          .map((o) => o.trim())
+          .where((o) => o.isNotEmpty)
+          .toList();
+      final response = await client.api.invoke(
+        'MessageController_sendPoll',
+        pathParameters: {'sessionId': sessionId},
+        body: {
+          'chatId': chat.id,
+          'name': questionController.text,
+          'options': options,
+        },
+      );
+      if (response.success && mounted) {
+        await _openChat(chat);
+      }
+      await _loadChats();
+    });
+  }
+
+  Future<void> _promptAndSendEvent() async {
+    _messageController.text = '[Event Invitation] Meeting scheduled for today.';
+    await _sendMessage();
+  }
+
+  Future<void> _promptAndSendAiImage() async {
+    final promptController = TextEditingController(
+      text: 'A professional cafe interior in Riyadh',
+    );
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Generate & Send AI Image'),
+        content: TextField(
+          controller: promptController,
+          decoration: const InputDecoration(
+            labelText: 'Image Prompt',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Generate & Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final client = _client;
+    final sessionId = _connectedSessionId;
+    final chat = _selectedChat;
+    if (client == null || sessionId == null || chat == null) return;
+
+    await _runRequest(() async {
+      final response = await client.messages.sendText(
+        chat.id,
+        '[AI Image Generated] "${promptController.text}": https://picsum.photos/seed/${Uri.encodeComponent(promptController.text)}/600/400',
         sessionId: sessionId,
       );
       final message = response.data;
@@ -642,9 +1179,9 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
+      backgroundColor: _surfaceColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF075E54),
+        backgroundColor: _appBarBgColor,
         foregroundColor: Colors.white,
         title: const Text('WhatsApp'),
         actions: [
@@ -684,17 +1221,20 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.forum, size: 52, color: Color(0xFF128C7E)),
+                Icon(Icons.forum, size: 52, color: _primaryColor),
                 const SizedBox(height: 12),
                 Text(
                   'Connect to OpenWA',
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: _textColor,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Connect the API first. Then select and connect a WhatsApp session.',
                   textAlign: TextAlign.center,
+                  style: TextStyle(color: _subTextColor),
                 ),
                 const SizedBox(height: 20),
                 TextField(
@@ -779,7 +1319,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     );
     final width = MediaQuery.sizeOf(context).width;
     return Material(
-      color: Colors.white,
+      color: _surfaceColor,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: width < 600
@@ -788,9 +1328,9 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.cloud_done, color: Color(0xFF128C7E)),
+                      Icon(Icons.cloud_done, color: _primaryColor),
                       const SizedBox(width: 8),
-                      const Text('API connected'),
+                      Text('API connected', style: TextStyle(color: _textColor)),
                       const Spacer(),
                       if (_activeSession != null)
                         Chip(label: Text(_activeSession!.status.name)),
@@ -804,9 +1344,9 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
               )
             : Row(
                 children: [
-                  const Icon(Icons.cloud_done, color: Color(0xFF128C7E)),
+                  Icon(Icons.cloud_done, color: _primaryColor),
                   const SizedBox(width: 8),
-                  const Text('API connected'),
+                  Text('API connected', style: TextStyle(color: _textColor)),
                   if (_activeSession != null) ...[
                     const SizedBox(width: 8),
                     Chip(label: Text(_activeSession!.status.name)),
@@ -831,10 +1371,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
+                Icon(
                   Icons.phonelink_setup,
                   size: 52,
-                  color: Color(0xFF128C7E),
+                  color: _primaryColor,
                 ),
                 const SizedBox(height: 12),
                 Text(
@@ -842,12 +1382,15 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                       ? 'No WhatsApp sessions found'
                       : 'Select a session to open your chats',
                   textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleLarge,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: _textColor,
+                  ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'The API connection and WhatsApp session are separate. Choose a session above, then connect it.',
                   textAlign: TextAlign.center,
+                  style: TextStyle(color: _subTextColor),
                 ),
                 const SizedBox(height: 8),
                 TextButton.icon(
@@ -880,7 +1423,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
           selectedIndex: _section,
           onDestinationSelected: _selectSection,
           labelType: NavigationRailLabelType.all,
-          backgroundColor: Colors.white,
+          backgroundColor: _surfaceColor,
           destinations: const [
             NavigationRailDestination(
               icon: Icon(Icons.chat_outlined),
@@ -905,7 +1448,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
           ],
         ),
         SizedBox(width: 350, child: _buildChatList()),
-        const VerticalDivider(width: 1),
+        VerticalDivider(
+          width: 1,
+          color: _isDark ? Colors.white12 : Colors.grey.shade300,
+        ),
         Expanded(
           child: _selectedChat == null
               ? _buildEmptyConversation()
@@ -962,19 +1508,21 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     final endpoint = OpenWaApiService.endpointFor(_apiOperationId);
 
     return ColoredBox(
-      color: const Color(0xFFF0F2F5),
+      color: _surfaceColor,
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
               children: [
-                const Icon(Icons.terminal, color: Color(0xFF075E54)),
+                Icon(Icons.terminal, color: _primaryColor),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Developer Console · 206 API operations',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: _textColor,
+                    ),
                   ),
                 ),
                 TextButton.icon(
@@ -1040,7 +1588,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                                 },
                         ),
                         const SizedBox(height: 8),
-                        Text(endpoint.summary ?? endpoint.operationId),
+                        Text(
+                          endpoint.summary ?? endpoint.operationId,
+                          style: TextStyle(color: _textColor),
+                        ),
                         const SizedBox(height: 16),
                         _buildJsonEditor(
                           controller: _apiPathParametersController,
@@ -1075,10 +1626,11 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                           ),
                           if (endpoint.requestContentType ==
                               'multipart/form-data')
-                            const Padding(
-                              padding: EdgeInsets.only(top: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
                               child: Text(
                                 'For file upload, use a JSON property like "file": {"fileName":"package.zip","base64":"..."}',
+                                style: TextStyle(color: _subTextColor),
                               ),
                             ),
                         ],
@@ -1119,15 +1671,19 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                       padding: const EdgeInsets.all(16),
                       child: SelectableText(
                         _apiResult!,
-                        style: const TextStyle(fontFamily: 'monospace'),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: _textColor,
+                        ),
                       ),
                     ),
                   ),
                 ],
-                const Padding(
-                  padding: EdgeInsets.all(8),
+                Padding(
+                  padding: const EdgeInsets.all(8),
                   child: Text(
                     'Mock tests cover all documented routes. A successful live response depends on the deployed server version, API permissions, session state, and request data.',
+                    style: TextStyle(color: _subTextColor),
                   ),
                 ),
               ],
@@ -1156,7 +1712,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         border: const OutlineInputBorder(),
         alignLabelWithHint: minLines > 2,
       ),
-      style: const TextStyle(fontFamily: 'monospace'),
+      style: TextStyle(fontFamily: 'monospace', color: _textColor),
     );
   }
 
@@ -1171,7 +1727,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         (_section == 1 && _contacts == null) ||
         (_section == 2 && _groups == null);
     return ColoredBox(
-      color: Colors.white,
+      color: _surfaceColor,
       child: Column(
         children: [
           Padding(
@@ -1181,8 +1737,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                 Expanded(
                   child: Text(
                     title,
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _textColor,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -1214,13 +1772,14 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                 hintText: 'Search $title',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: const Color(0xFFF0F2F5),
+                fillColor: _inputFillColor,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
                 isDense: true,
               ),
+              style: TextStyle(color: _textColor),
             ),
           ),
           const SizedBox(height: 8),
@@ -1233,21 +1792,25 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                       _searchController.text.isEmpty
                           ? 'No $title yet'
                           : 'No matches',
+                      style: TextStyle(color: _subTextColor),
                     ),
                   )
                 : ListView.separated(
                     itemCount: chats.length,
-                    separatorBuilder: (_, _) =>
-                        const Divider(height: 1, indent: 80),
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      indent: 80,
+                      color: _isDark ? Colors.white12 : Colors.grey.shade200,
+                    ),
                     itemBuilder: (context, index) {
                       final chat = chats[index];
                       final active = _selectedChat?.id == chat.id;
                       return ListTile(
                         selected: active,
-                        selectedTileColor: const Color(0xFFE9F5F2),
+                        selectedTileColor: _selectedTileColor,
                         leading: CircleAvatar(
-                          backgroundColor: const Color(0xFFDDF2EA),
-                          foregroundColor: const Color(0xFF075E54),
+                          backgroundColor: _avatarBgColor,
+                          foregroundColor: _avatarFgColor,
                           child: Icon(
                             chat.isGroup ? Icons.groups : Icons.person,
                           ),
@@ -1258,7 +1821,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                               : chat.id.split('@').first,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _textColor,
+                          ),
                         ),
                         subtitle: null,
                         trailing: chat.unreadCount > 0
@@ -1286,19 +1852,22 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
 
   Widget _buildEmptyConversation() {
     return Container(
-      color: const Color(0xFFECE5DD),
-      child: const Center(
+      color: _chatBgColor,
+      child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.forum_outlined, size: 76, color: Color(0xFF8A9AA0)),
-            SizedBox(height: 16),
+            Icon(Icons.forum_outlined, size: 76, color: _subTextColor),
+            const SizedBox(height: 16),
             Text(
               'OpenWA Web',
-              style: TextStyle(fontSize: 26, color: Color(0xFF41525D)),
+              style: TextStyle(fontSize: 26, color: _textColor),
             ),
-            SizedBox(height: 8),
-            Text('Select a chat to start messaging'),
+            const SizedBox(height: 8),
+            Text(
+              'Select a chat to start messaging',
+              style: TextStyle(color: _subTextColor),
+            ),
           ],
         ),
       ),
@@ -1312,7 +1881,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     return Column(
       children: [
         Material(
-          color: Colors.white,
+          color: _surfaceColor,
           child: ListTile(
             leading: narrow
                 ? IconButton(
@@ -1320,19 +1889,21 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                     icon: const Icon(Icons.arrow_back),
                   )
                 : CircleAvatar(
-                    backgroundColor: const Color(0xFFDDF2EA),
-                    foregroundColor: const Color(0xFF075E54),
+                    backgroundColor: _avatarBgColor,
+                    foregroundColor: _avatarFgColor,
                     child: Icon(chat.isGroup ? Icons.groups : Icons.person),
                   ),
             title: Text(
               chat.name?.isNotEmpty == true ? chat.name! : chat.id,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: _textColor),
             ),
             subtitle: Text(
               chat.id,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: _subTextColor),
             ),
             trailing: IconButton(
               tooltip: 'Refresh messages',
@@ -1341,23 +1912,31 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
             ),
           ),
         ),
-        const Divider(height: 1),
+        Divider(
+          height: 1,
+          color: _isDark ? Colors.white12 : Colors.grey.shade300,
+        ),
         Expanded(
           child: Container(
             width: double.infinity,
-            decoration: const BoxDecoration(color: Color(0xFFECE5DD)),
+            decoration: BoxDecoration(color: _chatBgColor),
             child: _messages.isEmpty && _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _messages.isEmpty
-                ? const Center(child: Text('No messages in this conversation'))
+                ? Center(
+                    child: Text(
+                      'No messages in this conversation',
+                      style: TextStyle(color: _subTextColor),
+                    ),
+                  )
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _messages.length,
                     itemBuilder: (context, index) {
                       final message = _messages[index];
-                      final color = message.fromMe
-                          ? const Color(0xFFD9FDD3)
-                          : Colors.white;
+                      final bubbleColor = message.fromMe
+                          ? _outgoingBubbleColor
+                          : _incomingBubbleColor;
                       return Align(
                         alignment: message.fromMe
                             ? Alignment.centerRight
@@ -1367,13 +1946,15 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.fromLTRB(12, 8, 10, 6),
                           decoration: BoxDecoration(
-                            color: color,
+                            color: bubbleColor,
                             borderRadius: BorderRadius.circular(10),
-                            boxShadow: const [
+                            boxShadow: [
                               BoxShadow(
-                                color: Color(0x12000000),
+                                color: _isDark
+                                    ? Colors.black26
+                                    : const Color(0x12000000),
                                 blurRadius: 2,
-                                offset: Offset(0, 1),
+                                offset: const Offset(0, 1),
                               ),
                             ],
                           ),
@@ -1382,12 +1963,16 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                             children: [
                               Align(
                                 alignment: Alignment.centerLeft,
-                                child: Text(message.body),
+                                child: Text(
+                                  message.body,
+                                  style: TextStyle(color: _textColor),
+                                ),
                               ),
                               const SizedBox(height: 4),
                               Text(
                                 _formatTime(message.timestamp),
-                                style: Theme.of(context).textTheme.labelSmall,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(color: _subTextColor),
                               ),
                             ],
                           ),
@@ -1398,10 +1983,16 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
           ),
         ),
         Container(
-          color: const Color(0xFFF0F2F5),
+          color: _surfaceColor,
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           child: Row(
             children: [
+              IconButton(
+                onPressed: _isLoading ? null : _showAttachmentMenu,
+                icon: Icon(Icons.add, color: _primaryColor),
+                tooltip: 'Attach & Send options',
+              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: TextField(
                   controller: _messageController,
@@ -1411,7 +2002,7 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                   decoration: InputDecoration(
                     hintText: 'Message',
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: _inputFillColor,
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 18,
                       vertical: 12,
@@ -1421,13 +2012,14 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                       borderSide: BorderSide.none,
                     ),
                   ),
+                  style: TextStyle(color: _textColor),
                 ),
               ),
               const SizedBox(width: 8),
               IconButton.filled(
                 onPressed: _isLoading ? null : _sendMessage,
                 style: IconButton.styleFrom(
-                  backgroundColor: const Color(0xFF128C7E),
+                  backgroundColor: _primaryColor,
                   foregroundColor: Colors.white,
                 ),
                 icon: const Icon(Icons.send),
@@ -1449,22 +2041,29 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: isError ? const Color(0xFFFFEBEE) : const Color(0xFFE4F5F1),
+        color: isError
+            ? (_isDark ? const Color(0xFF3B1013) : const Color(0xFFFFEBEE))
+            : (_isDark ? const Color(0xFF0B2E26) : const Color(0xFFE4F5F1)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
           Icon(
             isError ? Icons.error_outline : Icons.info_outline,
-            color: isError ? Colors.red.shade700 : const Color(0xFF128C7E),
+            color: isError ? Colors.red.shade400 : _primaryColor,
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(_errorMessage ?? _noticeMessage!)),
+          Expanded(
+            child: Text(
+              _errorMessage ?? _noticeMessage!,
+              style: TextStyle(color: _textColor),
+            ),
+          ),
           if (isError)
             IconButton(
               tooltip: 'Dismiss',
               onPressed: () => setState(() => _errorMessage = null),
-              icon: const Icon(Icons.close, size: 18),
+              icon: Icon(Icons.close, size: 18, color: _textColor),
             ),
         ],
       ),
