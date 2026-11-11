@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/open_wa_config.dart';
 import 'api_response.dart';
 import 'exceptions.dart';
+import 'security_utils.dart';
 
 /// Secure HTTP client wrapper tailored for OpenWA API communication.
 class OpenWaHttpClient {
@@ -244,6 +246,9 @@ class OpenWaHttpClient {
     http.Response response,
     T Function(dynamic json)? parser,
   ) {
+    final statusCode = response.statusCode;
+    debugPrint(SecurityUtils.sanitizeLog('[OpenWA HTTP] Status: $statusCode | Body: ${response.body}'));
+
     dynamic jsonResponseBody;
     try {
       if (response.body.isNotEmpty) {
@@ -253,8 +258,6 @@ class OpenWaHttpClient {
       // Non-JSON response body
       jsonResponseBody = {'raw': response.body};
     }
-
-    final statusCode = response.statusCode;
 
     // Handle Security & HTTP Auth Status Codes
     if (statusCode == 401 || statusCode == 403) {
