@@ -300,7 +300,6 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         ],
       ),
     );
-    controller.dispose();
     if (!mounted || name == null || name.isEmpty || _client != client) return;
     await _runRequest(() async {
       final response = await client.sessions.createSession(name);
@@ -791,7 +790,6 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         ),
       );
       final caption = captionController.text.trim();
-      captionController.dispose();
 
       if (confirmed != true || !mounted) return;
 
@@ -980,7 +978,6 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
         ),
       );
       final caption = captionController.text.trim();
-      captionController.dispose();
 
       if (confirmed != true || !mounted) return;
 
