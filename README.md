@@ -4,6 +4,64 @@ A 100% secure, enterprise-grade, A-to-Z implementation of the [OpenWA API Refere
 
 ---
 
+## 🛠️ Environment Setup & Prerequisites
+
+### 1. Flutter SDK Version
+- **Flutter SDK:** `>= 3.13.0` (Dart SDK `^3.13.7` or higher)
+- Verify your Flutter version by running:
+  ```bash
+  flutter --version
+  ```
+
+### 2. Platform Requirements
+- **macOS:** macOS 12+ (for macOS Desktop target)
+- **Android:** Android SDK API level 21 or higher (for Android target)
+- **iOS:** iOS 12+ (for iOS target)
+
+---
+
+## 🚀 Running the Project Locally
+
+### Step 1: Clone the Repository
+```bash
+git clone https://github.com/ajad74494sa/open-wa-flutter.git
+cd open-wa-flutter
+```
+
+### Step 2: Install Dependencies
+```bash
+flutter pub get
+```
+
+### Step 3: Configure Your Environment / Credentials
+Open `lib/main.dart` and ensure your OpenWA server Base URL and API Key are configured in the controllers:
+```dart
+final _baseUrlController = TextEditingController(text: 'https://w.kheyalcafe.com');
+final _apiKeyController = TextEditingController(text: 'YOUR_API_KEY');
+```
+
+### Step 4: Run Unit Tests
+Verify all SDK security checks, data models, and HMAC validations pass:
+```bash
+flutter test
+```
+
+### Step 5: Run the App
+- **Run on macOS Desktop:**
+  ```bash
+  flutter run -d macos
+  ```
+- **Run on Connected Android Device / Emulator:**
+  ```bash
+  flutter run -d android
+  ```
+- **Run on iOS Simulator:**
+  ```bash
+  flutter run -d ios
+  ```
+
+---
+
 ## 🏗️ Architecture & Project Structure
 
 The SDK is built using **Clean Architecture** principles, enforcing separation of concerns, immutability, and robust type safety across all layers:
@@ -103,16 +161,3 @@ void main() async {
   }
 }
 ```
-
----
-
-## 💻 Running the App & Tests
-
-- **Run Tests**:
-  ```bash
-  flutter test
-  ```
-- **Run App**:
-  ```bash
-  flutter run
-  ```
