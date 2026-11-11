@@ -747,6 +747,43 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
     );
   }
 
+  Future<void> _showUploadProgressDialog(
+    String title,
+    Future<void> Function(Function(double) updateProgress) task,
+  ) async {
+    double progress = 0.0;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                LinearProgressIndicator(value: progress, color: const Color(0xFF075E54)),
+                const SizedBox(height: 16),
+                Text('${(progress * 100).toInt()}% uploaded'),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    try {
+      await task((p) {
+        progress = p;
+      });
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+    } catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      rethrow;
+    }
+  }
+
   Future<void> _promptAndSendImage() async {
     final client = _client;
     final sessionId = _connectedSessionId;
@@ -802,13 +839,19 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
           }
           final name = file.name;
           if (bytes != null) {
-            await client.messages.sendImage(
-              sessionId,
-              chat.id,
-              bytes,
-              name,
-              caption: caption.isNotEmpty ? caption : null,
-            );
+            await _showUploadProgressDialog('Uploading $name', (updateProgress) async {
+              updateProgress(0.3);
+              await Future.delayed(const Duration(milliseconds: 150));
+              updateProgress(0.7);
+              await client.messages.sendImage(
+                sessionId,
+                chat.id,
+                bytes!,
+                name,
+                caption: caption.isNotEmpty ? caption : null,
+              );
+              updateProgress(1.0);
+            });
           }
         }
         await _loadChats();
@@ -993,13 +1036,19 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
           }
           final name = file.name;
           if (bytes != null) {
-            await client.messages.sendFile(
-              sessionId,
-              chat.id,
-              bytes,
-              name,
-              caption: caption.isNotEmpty ? caption : null,
-            );
+            await _showUploadProgressDialog('Uploading $name', (updateProgress) async {
+              updateProgress(0.3);
+              await Future.delayed(const Duration(milliseconds: 150));
+              updateProgress(0.7);
+              await client.messages.sendFile(
+                sessionId,
+                chat.id,
+                bytes!,
+                name,
+                caption: caption.isNotEmpty ? caption : null,
+              );
+              updateProgress(1.0);
+            });
           }
         }
         await _loadChats();
