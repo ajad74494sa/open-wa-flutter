@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 
 class OpenWaHomeScreen extends StatefulWidget {
   const OpenWaHomeScreen({super.key});
@@ -795,7 +796,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
 
       await _runRequest(() async {
         for (final file in result.files) {
-          final bytes = file.bytes;
+          List<int>? bytes = file.bytes;
+          if (bytes == null && file.path != null) {
+            bytes = File(file.path!).readAsBytesSync();
+          }
           final name = file.name;
           if (bytes != null) {
             await client.messages.sendImage(
@@ -983,7 +987,10 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
 
       await _runRequest(() async {
         for (final file in result.files) {
-          final bytes = file.bytes;
+          List<int>? bytes = file.bytes;
+          if (bytes == null && file.path != null) {
+            bytes = File(file.path!).readAsBytesSync();
+          }
           final name = file.name;
           if (bytes != null) {
             await client.messages.sendFile(
