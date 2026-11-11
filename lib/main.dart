@@ -41,10 +41,8 @@ class OpenWaHomeScreen extends StatefulWidget {
 }
 
 class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
-  final _baseUrlController = TextEditingController(text: 'https://w.kheyalcafe.com');
-  final _apiKeyController = TextEditingController(
-    text: 'owa_k1_8b99b371a37a83d1939620150f863a1bc2b977cdc40d76a261223f9f99071bed',
-  );
+  final _baseUrlController = TextEditingController(text: 'https://api.yourdomain.com');
+  final _apiKeyController = TextEditingController(text: '');
   final _recipientController = TextEditingController();
   final _messageController = TextEditingController();
 

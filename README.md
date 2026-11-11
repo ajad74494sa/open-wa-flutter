@@ -78,8 +78,8 @@ import 'package:open_wa/open_wa.dart';
 void main() async {
   // 1. Initialize Client
   final client = OpenWaClient.create(
-    baseUrl: 'https://w.kheyalcafe.com',
-    apiKey: 'owa_k1_8b99b371a37a83d1939620150f863a1bc2b977cdc40d76a261223f9f99071bed',
+    baseUrl: 'https://api.yourdomain.com',
+    apiKey: 'YOUR_API_KEY',
     requireHttps: true,
   );
 
