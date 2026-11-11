@@ -1205,15 +1205,14 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
                           ),
                         ),
                         title: Text(
-                          chat.name?.isNotEmpty == true ? chat.name! : chat.id,
+                          chat.name?.isNotEmpty == true
+                              ? chat.name!
+                              : chat.id.split('@').first,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        subtitle: Text(
-                          chat.lastMessage ?? chat.id,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        subtitle: null,
                         trailing: chat.unreadCount > 0
                             ? CircleAvatar(
                                 radius: 11,
