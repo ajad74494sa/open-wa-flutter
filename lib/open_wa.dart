@@ -7,6 +7,7 @@ export 'src/open_wa_client.dart';
 // Core Utilities & Exceptions
 export 'src/core/api_response.dart';
 export 'src/core/exceptions.dart';
+export 'src/core/notification_service.dart';
 export 'src/core/security_utils.dart';
 
 // Data Models

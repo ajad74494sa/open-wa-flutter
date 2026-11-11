@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:open_wa/open_wa.dart';
 
 import 'dart:convert';
+import 'dart:async';
 
 class OpenWaHomeScreen extends StatefulWidget {
   const OpenWaHomeScreen({super.key});
@@ -40,12 +41,48 @@ class _OpenWaHomeScreenState extends State<OpenWaHomeScreen> {
   int _section = 0;
   bool _isLoading = false;
 
+  Timer? _notificationPollTimer;
+  final Set<String> _knownMessageIds = {};
+
   bool get _apiConnected => _client != null;
   bool get _sessionConnected =>
       _connectedSessionId != null && _connectedSessionId == _selectedSessionId;
 
   @override
+  void initState() {
+    super.initState();
+    NotificationService().init();
+    _startNotificationPoller();
+  }
+
+  void _startNotificationPoller() {
+    _notificationPollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (_client == null || _connectedSessionId == null) return;
+      try {
+        if (_selectedChat != null) {
+          final res = await _client!.messages.getMessages(_connectedSessionId!, _selectedChat!.id);
+          final msgs = res.data ?? [];
+          for (final m in msgs) {
+            if (!_knownMessageIds.contains(m.id)) {
+              _knownMessageIds.add(m.id);
+              if (!m.fromMe) {
+                NotificationService().showMessageNotification(
+                  title: 'New Message from ${m.senderName ?? m.from}',
+                  body: m.body,
+                );
+              }
+            }
+          }
+        }
+      } catch (_) {
+        // Suppress background polling errors
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    _notificationPollTimer?.cancel();
     _client?.close();
     _baseUrlController.dispose();
     _apiKeyController.dispose();
