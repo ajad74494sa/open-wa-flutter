@@ -1,13 +1,13 @@
 # OpenWA Flutter Client SDK & App
 
-A 100% secure, enterprise-grade, A-to-Z implementation of the [OpenWA API Reference](https://docs.open-wa.org/api-reference) built in Dart & Flutter.
+A Dart SDK and chat-first Flutter app for the [OpenWA API](https://docs.open-wa.org/api-reference), including a catalog-backed dispatcher for the official endpoint set.
 
 ---
 
 ## 🛠️ Environment Setup & Prerequisites
 
 ### 1. Flutter SDK Version
-- **Flutter SDK:** `>= 3.13.0` (Dart SDK `^3.13.7` or higher)
+- **Flutter SDK:** `>= 3.47.9` (Dart SDK `^3.13.7` or higher)
 - Verify your Flutter version by running:
   ```bash
   flutter --version
@@ -33,12 +33,11 @@ cd open-wa-flutter
 flutter pub get
 ```
 
-### Step 3: Configure Your Environment / Credentials
-Open `lib/main.dart` and ensure your OpenWA server Base URL and API Key are configured in the controllers:
-```dart
-final _baseUrlController = TextEditingController(text: 'https://w.kheyalcafe.com');
-final _apiKeyController = TextEditingController(text: 'YOUR_API_KEY');
-```
+### Step 3: Connect to OpenWA
+Run the app and enter your OpenWA server URL and API key on the connection screen.
+Credentials are not stored in source code. After connecting, select or create a
+WhatsApp session for chats, or open the Developer Console to inspect and call any
+operation in the endpoint catalog. Mutating requests require confirmation.
 
 ### Step 4: Run Unit Tests
 Verify all SDK security checks, data models, and HMAC validations pass:
@@ -79,6 +78,7 @@ lib/
     │   ├── http_client.dart              # Secure HTTP client with auth headers, retries & exponential backoff
     │   └── security_utils.dart           # HMAC SHA-256 webhook verification & log sanitization
     ├── models/                           # Strongly-typed immutable JSON models
+    │   ├── api_endpoint_catalog.dart     # Official OpenWA endpoint catalog
     │   ├── catalog_models.dart           # Product & Catalog models
     │   ├── contact_models.dart           # Contact & Number Status models
     │   ├── group_models.dart             # Group Metadata & Participant models
@@ -88,7 +88,8 @@ lib/
     │   ├── session_models.dart           # SessionInfo, QR Code & SessionStatus enums
     │   ├── system_models.dart            # Server Health & Performance Metrics models
     │   └── webhook_models.dart           # WebhookConfig & Payload models
-    └── services/                         # Service modules covering all OpenWA API endpoints
+    └── services/                         # Typed services plus catalog dispatcher
+        ├── api_endpoint_service.dart     # Generic dispatcher for all catalog operations
         ├── catalog_service.dart          # Catalog & Product management
         ├── contact_service.dart          # Contacts & Number status check
         ├── group_service.dart            # Group creation, admin controls & invite links
@@ -103,9 +104,9 @@ lib/
 
 ---
 
-## 🔒 100% Security Features
+## Security and reliability
 
-1. **Authentication**: Header-based `Authorization: Bearer <apiKey>` and `api_key: <apiKey>` injection.
+1. **Authentication**: OpenWA API keys are sent using the `X-API-Key` header.
 2. **Webhook Security**: HMAC-SHA256 signature verification with constant-time string comparison (`timingSafeEqual`) to prevent timing side-channel attacks.
 3. **Log Sanitization**: `SecurityUtils.sanitizeLog()` automatically redacts sensitive bearer tokens and API keys from outputs and crash logs.
 4. **HTTPS Enforcement**: Strict HTTPS validation option (`requireHttps: true`).
@@ -113,18 +114,22 @@ lib/
 
 ---
 
-## 📦 Covered API Modules (24 Categories)
+## API endpoint coverage
 
-- **Sessions**: Start, stop, restart, QR pairing, logout, kill, list sessions, auth status check.
-- **Messages**: Send text, images, video, voice (PTT), files/documents, stickers, locations, contacts, buttons, retrieve history, reply, forward, star, delete, clear chats.
-- **Contacts**: List contacts, get contact details, number registration check (`checkNumberStatus`), block/unblock, profile pictures.
-- **Groups**: Create group, get metadata, add/remove participants, promote/demote admins, get/revoke invite links, join via invite, leave group, update title, description, and icon photo.
-- **Webhooks**: Register webhooks, unregister, list webhooks, HMAC signature verification.
-- **Labels**: Manage WhatsApp Business labels and assign/remove them from chats.
-- **Catalog**: Business product catalog management and product CRUD operations.
-- **Media**: Download, decrypt, and upload media assets.
-- **Profile**: Set profile name, status message, and profile picture.
-- **System**: Server health monitoring, performance metrics, statistics, and audit logs.
+The endpoint catalog is generated from the official OpenWA OpenAPI 0.30.0
+specification and contains 206 operations across 24 modules. Use
+`client.api.invoke(operationId, ...)` for any catalog operation or the app's
+Developer Console for interactive requests.
+
+The full route-by-route checklist is in
+[docs/API_ENDPOINT_COVERAGE.md](./docs/API_ENDPOINT_COVERAGE.md). Automated tests
+verify that every operation dispatches its documented method and route to a mock
+server. This does not confirm that a particular deployment enables an endpoint
+or that the current key/session has permission. Live verification is not claimed
+unless run against a configured server.
+Existing typed service methods are convenience wrappers and are not generated
+from the 0.30.0 specification; use the catalog dispatcher when you need the
+exact documented route and request contract.
 
 ---
 
@@ -142,14 +147,26 @@ void main() async {
   );
 
   try {
-    // 2. Check Session Status
-    final sessionResp = await client.sessions.getSessionInfo('default');
+    // Call any documented operation by its OpenAPI operation ID.
+    final apiResponse = await client.api.invoke('SessionController_findAll');
+    print('Sessions response: ${apiResponse.data}');
+
+    // 2. List sessions and use the UUID returned by the API
+    final sessionsResp = await client.sessions.listSessions();
+    final sessions = sessionsResp.data;
+    if (sessions == null || sessions.isEmpty) {
+      throw StateError('No sessions are available for this API key.');
+    }
+
+    final sessionId = sessions.first.sessionId;
+    final sessionResp = await client.sessions.getSessionInfo(sessionId);
     print('Session Status: ${sessionResp.data?.status}');
 
     // 3. Send Message
     final msgResp = await client.messages.sendText(
       '1234567890@c.us',
       'Hello from OpenWA Dart SDK!',
+      sessionId: sessionId,
     );
     print('Message Sent ID: ${msgResp.data?.id}');
   } on AuthenticationException catch (e) {

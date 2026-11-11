@@ -10,6 +10,8 @@ export 'src/core/exceptions.dart';
 export 'src/core/security_utils.dart';
 
 // Data Models
+export 'src/models/api_endpoint_catalog.dart';
+export 'src/models/chat_models.dart';
 export 'src/models/catalog_models.dart';
 export 'src/models/contact_models.dart';
 export 'src/models/group_models.dart';
@@ -21,6 +23,8 @@ export 'src/models/system_models.dart';
 export 'src/models/webhook_models.dart';
 
 // Services
+export 'src/services/api_endpoint_service.dart';
+export 'src/services/chat_service.dart';
 export 'src/services/catalog_service.dart';
 export 'src/services/contact_service.dart';
 export 'src/services/group_service.dart';

@@ -47,6 +47,22 @@ enum MessageType {
   }
 }
 
+String normalizeChatId(String input) {
+  final chatId = input.trim();
+  if (RegExp(r'^[^\s@]+@[^\s@]+$').hasMatch(chatId)) {
+    return chatId;
+  }
+
+  final phoneNumber = chatId.replaceAll(RegExp(r'[\s()+-]'), '');
+  if (RegExp(r'^\d+$').hasMatch(phoneNumber)) {
+    return '$phoneNumber@c.us';
+  }
+
+  throw const FormatException(
+    'Enter a phone number or a WhatsApp chat JID (for example 966...@c.us).',
+  );
+}
+
 @immutable
 class ChatMessage {
   final String id;
@@ -55,6 +71,7 @@ class ChatMessage {
   final String body;
   final MessageType type;
   final int timestamp;
+  final bool fromMe;
   final bool isGroupMsg;
   final String? senderName;
   final String? mediaUrl;
@@ -70,6 +87,7 @@ class ChatMessage {
     required this.body,
     required this.type,
     required this.timestamp,
+    this.fromMe = false,
     this.isGroupMsg = false,
     this.senderName,
     this.mediaUrl,
@@ -87,6 +105,7 @@ class ChatMessage {
       body: json['body'] as String? ?? json['caption'] as String? ?? '',
       type: MessageType.fromString(json['type'] as String? ?? 'chat'),
       timestamp: json['t'] as int? ?? json['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      fromMe: json['fromMe'] as bool? ?? json['isFromMe'] as bool? ?? false,
       isGroupMsg: json['isGroupMsg'] as bool? ?? false,
       senderName: json['notifyName'] as String? ?? json['sender']?['name'] as String?,
       mediaUrl: json['deprecatedMms3Url'] as String? ?? json['mediaUrl'] as String?,
@@ -104,6 +123,7 @@ class ChatMessage {
         'body': body,
         'type': type.name,
         'timestamp': timestamp,
+        'fromMe': fromMe,
         'isGroupMsg': isGroupMsg,
         'senderName': senderName,
         'mediaUrl': mediaUrl,
@@ -127,9 +147,9 @@ class SendTextMessageRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'to': chatId,
-        'content': content,
-        if (replyToMessageId != null) 'replyTo': replyToMessageId,
+        'chatId': chatId,
+        'text': content,
+        if (replyToMessageId != null) 'quotedMessageId': replyToMessageId,
       };
 }
 

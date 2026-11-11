@@ -2,167 +2,184 @@ import '../core/api_response.dart';
 import '../core/http_client.dart';
 import '../models/group_models.dart';
 
-/// Service for creating, configuring, and managing WhatsApp Groups & Participants.
+/// Session-scoped WhatsApp group and participant operations.
 class GroupService {
   final OpenWaHttpClient _client;
 
   GroupService(this._client);
 
-  /// Creates a new group with specified name and initial members.
+  Future<ApiResponse<List<GroupMetadata>>> getGroups(
+    String sessionId, {
+    int limit = 100,
+    int offset = 0,
+  }) {
+    return _client.get<List<GroupMetadata>>(
+      '/api/sessions/${_segment(sessionId)}/groups',
+      queryParameters: {'limit': limit, 'offset': offset},
+      parser: _parseGroups,
+    );
+  }
+
   Future<ApiResponse<GroupMetadata>> createGroup(
+    String sessionId,
     String groupName,
     List<String> participantIds,
-  ) async {
+  ) {
     return _client.post<GroupMetadata>(
-      '/groups/create',
-      body: {
-        'groupName': groupName,
-        'participants': participantIds,
-      },
-      parser: (json) => GroupMetadata.fromJson(json as Map<String, dynamic>),
+      '/api/sessions/${_segment(sessionId)}/groups',
+      body: {'name': groupName, 'participants': participantIds},
+      parser: (json) =>
+          GroupMetadata.fromJson(Map<String, dynamic>.from(json as Map)),
     );
   }
 
-  /// Fetches group metadata, participant list, admin status, and settings.
-  Future<ApiResponse<GroupMetadata>> getGroupMetadata(String groupId) async {
+  Future<ApiResponse<GroupMetadata>> getGroupMetadata(
+    String sessionId,
+    String groupId,
+  ) {
     return _client.get<GroupMetadata>(
-      '/groups/$groupId',
-      parser: (json) => GroupMetadata.fromJson(json as Map<String, dynamic>),
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}',
+      parser: (json) =>
+          GroupMetadata.fromJson(Map<String, dynamic>.from(json as Map)),
     );
   }
 
-  /// Adds new participants to an existing group.
   Future<ApiResponse<bool>> addParticipants(
+    String sessionId,
     String groupId,
     List<String> participantIds,
-  ) async {
+  ) {
     return _client.post<bool>(
-      '/groups/addParticipants',
-      body: {
-        'groupId': groupId,
-        'participants': participantIds,
-      },
-      parser: (json) => json['added'] as bool? ?? true,
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/participants',
+      body: {'participants': participantIds},
+      parser: (_) => true,
     );
   }
 
-  /// Removes participants from a group.
   Future<ApiResponse<bool>> removeParticipants(
+    String sessionId,
     String groupId,
     List<String> participantIds,
-  ) async {
-    return _client.post<bool>(
-      '/groups/removeParticipants',
-      body: {
-        'groupId': groupId,
-        'participants': participantIds,
-      },
-      parser: (json) => json['removed'] as bool? ?? true,
+  ) {
+    return _client.delete<bool>(
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/participants',
+      body: {'participants': participantIds},
+      parser: (_) => true,
     );
   }
 
-  /// Promotes participants to group admin role.
   Future<ApiResponse<bool>> promoteParticipants(
+    String sessionId,
     String groupId,
     List<String> participantIds,
-  ) async {
+  ) {
     return _client.post<bool>(
-      '/groups/promote',
-      body: {
-        'groupId': groupId,
-        'participants': participantIds,
-      },
-      parser: (json) => json['promoted'] as bool? ?? true,
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/participants/promote',
+      body: {'participants': participantIds},
+      parser: (_) => true,
     );
   }
 
-  /// Demotes admins back to standard group participants.
   Future<ApiResponse<bool>> demoteParticipants(
+    String sessionId,
     String groupId,
     List<String> participantIds,
-  ) async {
+  ) {
     return _client.post<bool>(
-      '/groups/demote',
-      body: {
-        'groupId': groupId,
-        'participants': participantIds,
-      },
-      parser: (json) => json['demoted'] as bool? ?? true,
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/participants/demote',
+      body: {'participants': participantIds},
+      parser: (_) => true,
     );
   }
 
-  /// Generates or retrieves the group invite URL link.
-  Future<ApiResponse<String>> getInviteLink(String groupId) async {
+  Future<ApiResponse<String>> getInviteLink(String sessionId, String groupId) {
     return _client.get<String>(
-      '/groups/$groupId/inviteLink',
-      parser: (json) => json['inviteLink'] as String? ?? json['code'] as String? ?? '',
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/invite-code',
+      parser: (json) {
+        final response = json as Map<String, dynamic>;
+        return response['inviteLink'] as String? ??
+            response['code'] as String? ??
+            '';
+      },
     );
   }
 
-  /// Revokes current group invite link and generates a new one.
-  Future<ApiResponse<String>> revokeInviteLink(String groupId) async {
+  Future<ApiResponse<String>> revokeInviteLink(
+    String sessionId,
+    String groupId,
+  ) {
     return _client.post<String>(
-      '/groups/$groupId/revokeInviteLink',
-      parser: (json) => json['inviteLink'] as String? ?? json['code'] as String? ?? '',
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/invite-code/revoke',
+      parser: (json) {
+        final response = json as Map<String, dynamic>;
+        return response['inviteLink'] as String? ??
+            response['code'] as String? ??
+            '';
+      },
     );
   }
 
-  /// Joins a group using an invite code or link.
-  Future<ApiResponse<GroupMetadata>> joinGroupViaInvite(String inviteCode) async {
+  Future<ApiResponse<GroupMetadata>> joinGroupViaInvite(
+    String sessionId,
+    String inviteCode,
+  ) {
     final cleanCode = inviteCode.split('/').last;
     return _client.post<GroupMetadata>(
-      '/groups/join',
+      '/api/sessions/${_segment(sessionId)}/groups/join',
       body: {'inviteCode': cleanCode},
-      parser: (json) => GroupMetadata.fromJson(json as Map<String, dynamic>),
+      parser: (json) =>
+          GroupMetadata.fromJson(Map<String, dynamic>.from(json as Map)),
     );
   }
 
-  /// Leaves a group.
-  Future<ApiResponse<bool>> leaveGroup(String groupId) async {
+  Future<ApiResponse<bool>> leaveGroup(String sessionId, String groupId) {
     return _client.post<bool>(
-      '/groups/leave',
-      body: {'groupId': groupId},
-      parser: (json) => json['left'] as bool? ?? true,
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/leave',
+      parser: (_) => true,
     );
   }
 
-  /// Updates the group subject title.
-  Future<ApiResponse<bool>> setGroupTitle(String groupId, String newTitle) async {
-    return _client.post<bool>(
-      '/groups/setSubject',
-      body: {
-        'groupId': groupId,
-        'subject': newTitle,
-      },
-      parser: (json) => json['updated'] as bool? ?? true,
-    );
-  }
-
-  /// Updates group description text.
-  Future<ApiResponse<bool>> setGroupDescription(String groupId, String description) async {
-    return _client.post<bool>(
-      '/groups/setDescription',
-      body: {
-        'groupId': groupId,
-        'description': description,
-      },
-      parser: (json) => json['updated'] as bool? ?? true,
-    );
-  }
-
-  /// Updates group icon profile image via media upload.
-  Future<ApiResponse<bool>> setGroupPhoto(
+  Future<ApiResponse<bool>> setGroupTitle(
+    String sessionId,
     String groupId,
-    List<int> imageBytes,
-    String fileName,
-  ) async {
-    return _client.uploadMedia<bool>(
-      '/groups/setIcon',
-      fieldName: 'file',
-      fileBytes: imageBytes,
-      fileName: fileName,
-      extraFields: {'groupId': groupId},
-      parser: (json) => json['updated'] as bool? ?? true,
+    String newTitle,
+  ) {
+    return _client.put<bool>(
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/subject',
+      body: {'subject': newTitle},
+      parser: (_) => true,
     );
   }
+
+  Future<ApiResponse<bool>> setGroupDescription(
+    String sessionId,
+    String groupId,
+    String description,
+  ) {
+    return _client.put<bool>(
+      '/api/sessions/${_segment(sessionId)}/groups/${_segment(groupId)}/description',
+      body: {'description': description},
+      parser: (_) => true,
+    );
+  }
+}
+
+String _segment(String value) => Uri.encodeComponent(value);
+
+List<GroupMetadata> _parseGroups(dynamic json) {
+  if (json is List) {
+    return json.map((group) {
+      if (group is! Map) {
+        throw const FormatException('Group entries must be JSON objects.');
+      }
+      return GroupMetadata.fromJson(Map<String, dynamic>.from(group));
+    }).toList();
+  }
+  if (json is Map) {
+    final map = Map<String, dynamic>.from(json);
+    for (final key in ['groups', 'items', 'data', 'results']) {
+      if (map.containsKey(key)) return _parseGroups(map[key]);
+    }
+  }
+  throw const FormatException('Group response must contain a group array.');
 }

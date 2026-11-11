@@ -1,16 +1,23 @@
 import 'package:meta/meta.dart';
 
 enum SessionStatus {
+  created,
   connected,
   disconnected,
   pairing,
+  qrReady,
   unpaired,
   initializing,
   timeout,
+  ready,
+  failed,
+  actionRequired,
   unknown;
 
   static SessionStatus fromString(String status) {
-    switch (status.toLowerCase()) {
+    switch (status.toLowerCase().replaceAll('_', '')) {
+      case 'created':
+        return SessionStatus.created;
       case 'connected':
       case 'isconnected':
         return SessionStatus.connected;
@@ -18,7 +25,8 @@ enum SessionStatus {
         return SessionStatus.disconnected;
       case 'pairing':
       case 'qr':
-        return SessionStatus.pairing;
+      case 'qrready':
+        return SessionStatus.qrReady;
       case 'unpaired':
         return SessionStatus.unpaired;
       case 'initializing':
@@ -26,6 +34,12 @@ enum SessionStatus {
         return SessionStatus.initializing;
       case 'timeout':
         return SessionStatus.timeout;
+      case 'ready':
+        return SessionStatus.ready;
+      case 'failed':
+        return SessionStatus.failed;
+      case 'actionrequired':
+        return SessionStatus.actionRequired;
       default:
         return SessionStatus.unknown;
     }
@@ -35,6 +49,7 @@ enum SessionStatus {
 @immutable
 class SessionInfo {
   final String sessionId;
+  final String? name;
   final SessionStatus status;
   final String? qrCode;
   final String? phoneNumber;
@@ -44,6 +59,7 @@ class SessionInfo {
 
   const SessionInfo({
     required this.sessionId,
+    this.name,
     required this.status,
     this.qrCode,
     this.phoneNumber,
@@ -54,18 +70,29 @@ class SessionInfo {
 
   factory SessionInfo.fromJson(Map<String, dynamic> json) {
     return SessionInfo(
-      sessionId: json['sessionId'] as String? ?? json['session'] as String? ?? 'default',
+      sessionId: json['id'] as String? ??
+          json['sessionId'] as String? ??
+          json['session'] as String? ??
+          'default',
+      name: json['name'] as String?,
       status: SessionStatus.fromString(json['status'] as String? ?? 'unknown'),
       qrCode: json['qr'] as String? ?? json['qrCode'] as String?,
-      phoneNumber: json['phoneNumber'] as String? ?? json['wid'] as String?,
+      phoneNumber: json['phone'] as String? ??
+          json['phoneNumber'] as String? ??
+          json['wid'] as String?,
       batteryLevel: json['battery'] as int?,
       isPlugged: json['plugged'] as bool? ?? false,
-      isConnected: json['isConnected'] as bool? ?? (json['status'] == 'CONNECTED'),
+      isConnected: json['engineLoaded'] as bool? ??
+          json['isConnected'] as bool? ??
+          const {'READY', 'CONNECTED'}.contains(
+            (json['status'] as String?)?.toUpperCase(),
+          ),
     );
   }
 
   Map<String, dynamic> toJson() => {
         'sessionId': sessionId,
+        'name': name,
         'status': status.name,
         'qrCode': qrCode,
         'phoneNumber': phoneNumber,

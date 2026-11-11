@@ -2,63 +2,95 @@ import '../core/api_response.dart';
 import '../core/http_client.dart';
 import '../models/contact_models.dart';
 
-/// Service for managing WhatsApp contacts, number validation, and blocklists.
+/// Session-scoped contact operations.
 class ContactService {
   final OpenWaHttpClient _client;
 
   ContactService(this._client);
 
-  /// Fetches all contacts saved on the WhatsApp account.
-  Future<ApiResponse<List<Contact>>> getAllContacts() async {
+  Future<ApiResponse<List<Contact>>> getAllContacts(
+    String sessionId, {
+    int limit = 100,
+    int offset = 0,
+  }) {
     return _client.get<List<Contact>>(
-      '/contacts',
-      parser: (json) {
-        final list = json as List<dynamic>? ?? [];
-        return list.map((e) => Contact.fromJson(e as Map<String, dynamic>)).toList();
-      },
+      '/api/sessions/${_segment(sessionId)}/contacts',
+      queryParameters: {'limit': limit, 'offset': offset},
+      parser: _parseContacts,
     );
   }
 
-  /// Retrieves detailed information for a single contact.
-  Future<ApiResponse<Contact>> getContact(String contactId) async {
+  Future<ApiResponse<Contact>> getContact(
+    String sessionId,
+    String contactId,
+  ) {
     return _client.get<Contact>(
-      '/contacts/$contactId',
-      parser: (json) => Contact.fromJson(json as Map<String, dynamic>),
+      '/api/sessions/${_segment(sessionId)}/contacts/${_segment(contactId)}',
+      parser: (json) => Contact.fromJson(Map<String, dynamic>.from(json as Map)),
     );
   }
 
-  /// Validates whether a phone number exists and is registered on WhatsApp.
-  Future<ApiResponse<NumberStatus>> checkNumberStatus(String phoneNumber) async {
+  Future<ApiResponse<NumberStatus>> checkNumberStatus(
+    String sessionId,
+    String phoneNumber,
+  ) {
     final cleanNumber = phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
     return _client.get<NumberStatus>(
-      '/contacts/check/$cleanNumber',
-      parser: (json) => NumberStatus.fromJson(json as Map<String, dynamic>),
+      '/api/sessions/${_segment(sessionId)}/contacts/check/${_segment(cleanNumber)}',
+      parser: (json) =>
+          NumberStatus.fromJson(Map<String, dynamic>.from(json as Map)),
     );
   }
 
-  /// Blocks a contact.
-  Future<ApiResponse<bool>> blockContact(String contactId) async {
+  Future<ApiResponse<bool>> blockContact(
+    String sessionId,
+    String contactId,
+  ) {
     return _client.post<bool>(
-      '/contacts/block',
-      body: {'contactId': contactId},
-      parser: (json) => json['blocked'] as bool? ?? true,
+      '/api/sessions/${_segment(sessionId)}/contacts/${_segment(contactId)}/block',
+      body: <String, dynamic>{},
+      parser: (_) => true,
     );
   }
 
-  /// Unblocks a contact.
-  Future<ApiResponse<bool>> unblockContact(String contactId) async {
-    return _client.post<bool>(
-      '/contacts/unblock',
-      body: {'contactId': contactId},
-      parser: (json) => json['unblocked'] as bool? ?? true,
+  Future<ApiResponse<bool>> unblockContact(
+    String sessionId,
+    String contactId,
+  ) {
+    return _client.delete<bool>(
+      '/api/sessions/${_segment(sessionId)}/contacts/${_segment(contactId)}/block',
+      parser: (_) => true,
     );
   }
 
-  /// Gets the profile picture URL for a given contact.
-  Future<ApiResponse<String>> getProfilePic(String contactId) async {
+  Future<ApiResponse<String>> getProfilePic(
+    String sessionId,
+    String contactId,
+  ) {
     return _client.get<String>(
-      '/contacts/$contactId/profilePic',
-      parser: (json) => json['url'] as String? ?? json['profilePic'] as String? ?? '',
+      '/api/sessions/${_segment(sessionId)}/contacts/${_segment(contactId)}/profile-picture',
+      parser: (json) =>
+          (json as Map<String, dynamic>)['url'] as String? ?? '',
     );
   }
+}
+
+String _segment(String value) => Uri.encodeComponent(value);
+
+List<Contact> _parseContacts(dynamic json) {
+  if (json is List) {
+    return json.map((contact) {
+      if (contact is! Map) {
+        throw const FormatException('Contact entries must be JSON objects.');
+      }
+      return Contact.fromJson(Map<String, dynamic>.from(contact));
+    }).toList();
+  }
+  if (json is Map) {
+    final map = Map<String, dynamic>.from(json);
+    for (final key in ['contacts', 'items', 'data', 'results']) {
+      if (map.containsKey(key)) return _parseContacts(map[key]);
+    }
+  }
+  throw const FormatException('Contact response must contain a contact array.');
 }

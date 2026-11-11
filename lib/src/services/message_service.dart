@@ -12,15 +12,16 @@ class MessageService {
   Future<ApiResponse<ChatMessage>> sendText(
     String chatId,
     String content, {
+    required String sessionId,
     String? replyToId,
   }) async {
     final payload = SendTextMessageRequest(
-      chatId: chatId,
+      chatId: normalizeChatId(chatId),
       content: content,
       replyToMessageId: replyToId,
     );
     return _client.post<ChatMessage>(
-      '/messages/sendText',
+      '/api/sessions/${_segment(sessionId)}/messages/send-text',
       body: payload.toJson(),
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
@@ -174,89 +175,131 @@ class MessageService {
 
   /// Retrieves recent message history for a given chat.
   Future<ApiResponse<List<ChatMessage>>> getMessages(
+    String sessionId,
     String chatId, {
     int limit = 50,
+    int offset = 0,
   }) async {
     return _client.get<List<ChatMessage>>(
-      '/messages/$chatId',
-      queryParameters: {'limit': limit},
-      parser: (json) {
-        final list = json as List<dynamic>? ?? [];
-        return list.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
+      '/api/sessions/${_segment(sessionId)}/messages',
+      queryParameters: {
+        'chatId': chatId,
+        'limit': limit,
+        'offset': offset,
       },
+      parser: _parseMessages,
+    );
+  }
+
+  /// Fetches recent chat history directly from the WhatsApp engine.
+  Future<ApiResponse<List<ChatMessage>>> getLiveHistory(
+    String sessionId,
+    String chatId, {
+    int limit = 50,
+    bool deep = false,
+  }) {
+    return _client.get<List<ChatMessage>>(
+      '/api/sessions/${_segment(sessionId)}/messages/${_segment(chatId)}/history',
+      queryParameters: {'limit': limit, 'deep': deep},
+      parser: _parseMessages,
     );
   }
 
   /// Retrieves a specific message by unique message ID.
   Future<ApiResponse<ChatMessage>> getMessageById(String messageId) async {
     return _client.get<ChatMessage>(
-      '/messages/single/$messageId',
+      '/api/messages/${_segment(messageId)}',
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
   /// Replies directly to an existing message.
   Future<ApiResponse<ChatMessage>> replyMessage(
+    String sessionId,
     String chatId,
     String messageId,
     String content,
   ) async {
-    return sendText(chatId, content, replyToId: messageId);
+    return sendText(
+      chatId,
+      content,
+      sessionId: sessionId,
+      replyToId: messageId,
+    );
   }
 
   /// Deletes a message (optionally revoking for everyone).
   Future<ApiResponse<bool>> deleteMessage(
+    String sessionId,
     String chatId,
     String messageId, {
     bool revoke = true,
   }) async {
     return _client.post<bool>(
-      '/messages/delete',
-      body: {
-        'chatId': chatId,
-        'messageId': messageId,
-        'revoke': revoke,
-      },
-      parser: (json) => json['deleted'] as bool? ?? true,
+      '/api/sessions/${_segment(sessionId)}/messages/delete',
+      body: {'chatId': chatId, 'messageId': messageId},
+      parser: (_) => true,
     );
   }
 
   /// Forwards an existing message to another chat.
   Future<ApiResponse<ChatMessage>> forwardMessage(
+    String sessionId,
     String toChatId,
     String messageId,
   ) async {
     return _client.post<ChatMessage>(
-      '/messages/forward',
-      body: {
-        'to': toChatId,
-        'messageId': messageId,
-      },
+      '/api/sessions/${_segment(sessionId)}/messages/forward',
+      body: {'chatId': toChatId, 'messageId': messageId},
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
   /// Stars or unstars a message.
   Future<ApiResponse<bool>> starMessage(
+    String sessionId,
+    String chatId,
     String messageId, {
     bool star = true,
   }) async {
     return _client.post<bool>(
-      '/messages/star',
-      body: {
-        'messageId': messageId,
-        'star': star,
-      },
-      parser: (json) => json['starred'] as bool? ?? star,
+      '/api/sessions/${_segment(sessionId)}/messages/star',
+      body: {'chatId': chatId, 'messageId': messageId, 'star': star},
+      parser: (_) => true,
     );
   }
 
   /// Clears message history in a chat.
-  Future<ApiResponse<bool>> clearChat(String chatId) async {
-    return _client.post<bool>(
-      '/messages/clear',
-      body: {'chatId': chatId},
-      parser: (json) => json['cleared'] as bool? ?? true,
+  Future<ApiResponse<bool>> clearChat(
+    String sessionId,
+    String chatId,
+  ) {
+    return _client.delete<bool>(
+      '/api/sessions/${_segment(sessionId)}/chats/${_segment(chatId)}/messages',
+      parser: (_) => true,
     );
   }
+}
+
+String _segment(String value) => Uri.encodeComponent(value);
+
+List<ChatMessage> _parseMessages(dynamic json) {
+  if (json is List) {
+    return json.map(_parseMessage).toList();
+  }
+  if (json is Map) {
+    final map = Map<String, dynamic>.from(json);
+    for (final key in ['messages', 'items', 'data', 'results']) {
+      if (map.containsKey(key)) return _parseMessages(map[key]);
+    }
+    throw const FormatException('Message response has no messages array.');
+  }
+  throw const FormatException('Message response must be a JSON array.');
+}
+
+ChatMessage _parseMessage(dynamic json) {
+  if (json is! Map) {
+    throw const FormatException('Message entries must be JSON objects.');
+  }
+  return ChatMessage.fromJson(Map<String, dynamic>.from(json));
 }

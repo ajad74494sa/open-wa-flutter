@@ -1,6 +1,8 @@
 import 'config/open_wa_config.dart';
 import 'core/http_client.dart';
+import 'services/api_endpoint_service.dart';
 import 'services/catalog_service.dart';
+import 'services/chat_service.dart';
 import 'services/contact_service.dart';
 import 'services/group_service.dart';
 import 'services/label_service.dart';
@@ -21,6 +23,12 @@ class OpenWaClient {
 
   /// Service for Managing WhatsApp Sessions (Create, QR, Lifecycle).
   late final SessionService sessions;
+
+  /// Generic dispatcher for every operation in the official OpenWA catalog.
+  late final OpenWaApiService api;
+
+  /// Session-scoped chat list and chat action operations.
+  late final ChatService chats;
 
   /// Service for Sending/Receiving Messages (Text, Media, Location, Buttons, Actions).
   late final MessageService messages;
@@ -51,7 +59,9 @@ class OpenWaClient {
 
   OpenWaClient(this.config, {OpenWaHttpClient? httpClient})
       : _httpClient = httpClient ?? OpenWaHttpClient(config) {
+    api = OpenWaApiService(_httpClient);
     sessions = SessionService(_httpClient);
+    chats = ChatService(_httpClient);
     messages = MessageService(_httpClient);
     contacts = ContactService(_httpClient);
     groups = GroupService(_httpClient);
