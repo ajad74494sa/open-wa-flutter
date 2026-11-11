@@ -279,6 +279,25 @@ class MessageService {
       parser: (_) => true,
     );
   }
+
+  /// Sends bulk messages (text, photos, videos, or documents) to multiple recipients.
+  Future<ApiResponse<dynamic>> sendBulk(
+    String sessionId, {
+    required List<String> recipients,
+    required String content,
+    String? mediaUrl,
+  }) async {
+    final body = {
+      'recipients': recipients.map(normalizeChatId).toList(),
+      'content': content,
+      if (mediaUrl != null) 'mediaUrl': mediaUrl,
+    };
+    return _client.post<dynamic>(
+      '/api/sessions/${_segment(sessionId)}/messages/send-bulk',
+      body: body,
+      parser: (json) => json,
+    );
+  }
 }
 
 String _segment(String value) => Uri.encodeComponent(value);
