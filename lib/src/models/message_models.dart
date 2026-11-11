@@ -147,9 +147,15 @@ class SendTextMessageRequest {
   });
 
   Map<String, dynamic> toJson() => {
+        'to': chatId,
         'chatId': chatId,
+        'content': content,
         'text': content,
-        if (replyToMessageId != null) 'quotedMessageId': replyToMessageId,
+        'message': content,
+        if (replyToMessageId != null) ...{
+          'replyTo': replyToMessageId,
+          'quotedMessageId': replyToMessageId,
+        },
       };
 }
 
@@ -169,8 +175,11 @@ class SendLocationRequest {
 
   Map<String, dynamic> toJson() => {
         'to': chatId,
+        'chatId': chatId,
         'lat': latitude,
+        'latitude': latitude,
         'lng': longitude,
+        'longitude': longitude,
         if (title != null) 'title': title,
       };
 }
@@ -187,6 +196,7 @@ class SendContactRequest {
 
   Map<String, dynamic> toJson() => {
         'to': chatId,
+        'chatId': chatId,
         'contactId': contactId,
       };
 }
