@@ -35,10 +35,9 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
-    final fields = {
-      'chatId': normalizeChatId(chatId),
-      if (caption != null) 'caption': caption,
-    };
+    final fields = <String, String>{'chatId': normalizeChatId(chatId)};
+    if (caption != null) fields['caption'] = caption;
+
     return _client.uploadMedia<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-image',
       fieldName: 'file',
@@ -57,10 +56,9 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
-    final fields = {
-      'chatId': normalizeChatId(chatId),
-      if (caption != null) 'caption': caption,
-    };
+    final fields = <String, String>{'chatId': normalizeChatId(chatId)};
+    if (caption != null) fields['caption'] = caption;
+
     return _client.uploadMedia<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-video',
       fieldName: 'file',
@@ -88,6 +86,16 @@ class MessageService {
     );
   }
 
+  /// Sends an audio file via /api/sessions/{sessionId}/messages/send-audio.
+  Future<ApiResponse<ChatMessage>> sendAudio(
+    String sessionId,
+    String chatId,
+    List<int> audioBytes,
+    String fileName,
+  ) async {
+    return sendVoice(sessionId, chatId, audioBytes, fileName);
+  }
+
   /// Sends a document or file from local device bytes.
   Future<ApiResponse<ChatMessage>> sendFile(
     String sessionId,
@@ -96,10 +104,9 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
-    final fields = {
-      'chatId': normalizeChatId(chatId),
-      if (caption != null) 'caption': caption,
-    };
+    final fields = <String, String>{'chatId': normalizeChatId(chatId)};
+    if (caption != null) fields['caption'] = caption;
+
     return _client.uploadMedia<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-document',
       fieldName: 'file',
@@ -134,12 +141,14 @@ class MessageService {
     double longitude, {
     String? title,
   }) async {
-    final payload = {
+    final payload = <String, dynamic>{
       'chatId': normalizeChatId(chatId),
       'lat': latitude,
       'lng': longitude,
-      if (title != null) 'title': title,
     };
+    if (title != null) {
+      payload['title'] = title;
+    }
     return _client.post<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-location',
       body: payload,
@@ -297,11 +306,13 @@ class MessageService {
     required String content,
     String? mediaUrl,
   }) async {
-    final body = {
+    final body = <String, dynamic>{
       'recipients': recipients.map(normalizeChatId).toList(),
       'content': content,
-      if (mediaUrl != null) 'mediaUrl': mediaUrl,
     };
+    if (mediaUrl != null) {
+      body['mediaUrl'] = mediaUrl;
+    }
     return _client.post<dynamic>(
       '/api/sessions/${_segment(sessionId)}/messages/send-bulk',
       body: body,
