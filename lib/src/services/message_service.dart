@@ -1,3 +1,4 @@
+import 'dart:convert';
 import '../core/api_response.dart';
 import '../core/http_client.dart';
 import '../models/message_models.dart';
@@ -27,7 +28,7 @@ class MessageService {
     );
   }
 
-  /// Sends an image photo from local device bytes.
+  /// Sends an image photo from local device bytes as Base64 JSON.
   Future<ApiResponse<ChatMessage>> sendImage(
     String sessionId,
     String chatId,
@@ -35,20 +36,24 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
-    final fields = <String, String>{'chatId': normalizeChatId(chatId)};
-    if (caption != null) fields['caption'] = caption;
-
-    return _client.uploadMedia<ChatMessage>(
+    final ext = fileName.contains('.') ? fileName.split('.').last : 'jpeg';
+    final base64Media = 'data:image/$ext;base64,${base64Encode(imageBytes)}';
+    final payload = <String, dynamic>{
+      'chatId': normalizeChatId(chatId),
+      'media': base64Media,
+      'filename': fileName,
+    };
+    if (caption != null) {
+      payload['caption'] = caption;
+    }
+    return _client.post<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-image',
-      fieldName: 'file',
-      fileBytes: imageBytes,
-      fileName: fileName,
-      extraFields: fields,
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
-  /// Sends a video from local device bytes.
+  /// Sends a video from local device bytes as Base64 JSON.
   Future<ApiResponse<ChatMessage>> sendVideo(
     String sessionId,
     String chatId,
@@ -56,32 +61,39 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
-    final fields = <String, String>{'chatId': normalizeChatId(chatId)};
-    if (caption != null) fields['caption'] = caption;
-
-    return _client.uploadMedia<ChatMessage>(
+    final ext = fileName.contains('.') ? fileName.split('.').last : 'mp4';
+    final base64Media = 'data:video/$ext;base64,${base64Encode(videoBytes)}';
+    final payload = <String, dynamic>{
+      'chatId': normalizeChatId(chatId),
+      'media': base64Media,
+      'filename': fileName,
+    };
+    if (caption != null) {
+      payload['caption'] = caption;
+    }
+    return _client.post<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-video',
-      fieldName: 'file',
-      fileBytes: videoBytes,
-      fileName: fileName,
-      extraFields: fields,
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
-  /// Sends a voice note / PTT audio recording.
+  /// Sends a voice note / PTT audio recording as Base64 JSON.
   Future<ApiResponse<ChatMessage>> sendVoice(
     String sessionId,
     String chatId,
     List<int> audioBytes,
     String fileName,
   ) async {
-    return _client.uploadMedia<ChatMessage>(
+    final base64Media = 'data:audio/mp3;base64,${base64Encode(audioBytes)}';
+    final payload = <String, dynamic>{
+      'chatId': normalizeChatId(chatId),
+      'media': base64Media,
+      'filename': fileName,
+    };
+    return _client.post<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-audio',
-      fieldName: 'file',
-      fileBytes: audioBytes,
-      fileName: fileName,
-      extraFields: {'chatId': normalizeChatId(chatId)},
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
@@ -96,7 +108,7 @@ class MessageService {
     return sendVoice(sessionId, chatId, audioBytes, fileName);
   }
 
-  /// Sends a document or file from local device bytes.
+  /// Sends a document or file from local device bytes as Base64 JSON.
   Future<ApiResponse<ChatMessage>> sendFile(
     String sessionId,
     String chatId,
@@ -104,31 +116,37 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
-    final fields = <String, String>{'chatId': normalizeChatId(chatId)};
-    if (caption != null) fields['caption'] = caption;
-
-    return _client.uploadMedia<ChatMessage>(
+    final base64Media = 'data:application/octet-stream;base64,${base64Encode(fileBytes)}';
+    final payload = <String, dynamic>{
+      'chatId': normalizeChatId(chatId),
+      'media': base64Media,
+      'filename': fileName,
+    };
+    if (caption != null) {
+      payload['caption'] = caption;
+    }
+    return _client.post<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-document',
-      fieldName: 'file',
-      fileBytes: fileBytes,
-      fileName: fileName,
-      extraFields: fields,
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
 
-  /// Sends a custom image sticker.
+  /// Sends a custom image sticker as Base64 JSON.
   Future<ApiResponse<ChatMessage>> sendSticker(
     String sessionId,
     String chatId,
     List<int> imageBytes,
   ) async {
-    return _client.uploadMedia<ChatMessage>(
+    final base64Media = 'data:image/png;base64,${base64Encode(imageBytes)}';
+    final payload = <String, dynamic>{
+      'chatId': normalizeChatId(chatId),
+      'media': base64Media,
+      'filename': 'sticker.png',
+    };
+    return _client.post<ChatMessage>(
       '/api/sessions/${_segment(sessionId)}/messages/send-sticker',
-      fieldName: 'file',
-      fileBytes: imageBytes,
-      fileName: 'sticker.png',
-      extraFields: {'chatId': normalizeChatId(chatId)},
+      body: payload,
       parser: (json) => ChatMessage.fromJson(json as Map<String, dynamic>),
     );
   }
