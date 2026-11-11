@@ -36,11 +36,14 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
+    final normalizedId = normalizeChatId(chatId);
     final ext = fileName.contains('.') ? fileName.split('.').last : 'jpeg';
     final base64Media = 'data:image/$ext;base64,${base64Encode(imageBytes)}';
     final payload = <String, dynamic>{
-      'chatId': normalizeChatId(chatId),
+      'to': normalizedId,
+      'chatId': normalizedId,
       'media': base64Media,
+      'file': base64Media,
       'filename': fileName,
     };
     if (caption != null) {
@@ -61,11 +64,14 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
+    final normalizedId = normalizeChatId(chatId);
     final ext = fileName.contains('.') ? fileName.split('.').last : 'mp4';
     final base64Media = 'data:video/$ext;base64,${base64Encode(videoBytes)}';
     final payload = <String, dynamic>{
-      'chatId': normalizeChatId(chatId),
+      'to': normalizedId,
+      'chatId': normalizedId,
       'media': base64Media,
+      'file': base64Media,
       'filename': fileName,
     };
     if (caption != null) {
@@ -85,10 +91,13 @@ class MessageService {
     List<int> audioBytes,
     String fileName,
   ) async {
+    final normalizedId = normalizeChatId(chatId);
     final base64Media = 'data:audio/mp3;base64,${base64Encode(audioBytes)}';
     final payload = <String, dynamic>{
-      'chatId': normalizeChatId(chatId),
+      'to': normalizedId,
+      'chatId': normalizedId,
       'media': base64Media,
+      'file': base64Media,
       'filename': fileName,
     };
     return _client.post<ChatMessage>(
@@ -116,10 +125,13 @@ class MessageService {
     String fileName, {
     String? caption,
   }) async {
+    final normalizedId = normalizeChatId(chatId);
     final base64Media = 'data:application/octet-stream;base64,${base64Encode(fileBytes)}';
     final payload = <String, dynamic>{
-      'chatId': normalizeChatId(chatId),
+      'to': normalizedId,
+      'chatId': normalizedId,
       'media': base64Media,
+      'file': base64Media,
       'filename': fileName,
     };
     if (caption != null) {
@@ -138,10 +150,13 @@ class MessageService {
     String chatId,
     List<int> imageBytes,
   ) async {
+    final normalizedId = normalizeChatId(chatId);
     final base64Media = 'data:image/png;base64,${base64Encode(imageBytes)}';
     final payload = <String, dynamic>{
-      'chatId': normalizeChatId(chatId),
+      'to': normalizedId,
+      'chatId': normalizedId,
       'media': base64Media,
+      'file': base64Media,
       'filename': 'sticker.png',
     };
     return _client.post<ChatMessage>(
